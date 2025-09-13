@@ -1,6 +1,15 @@
 let conn;
 const AC = window.WebIM || window.AgoraChat || window.agoraChat;
 
+if (window.XMLHttpRequest) {
+  const origOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (...args) {
+    origOpen.apply(this, args);
+    this.withCredentials = false;
+  };
+}
+
+
 function log(text) {
   const msgList = document.getElementById("messages");
   const li = document.createElement("li");
@@ -26,8 +35,10 @@ window.addEventListener("load", () => {
     conn = new AC.connection({
       appKey,
       autoReconnect: true,
-      url: "https://msync-api-61.chat.agora.io/ws",
-      apiUrl: "https://a61.chat.agora.io",
+      https: true,
+      isHttpDNS: false,
+      url: "msync-api-61.chat.agora.io/ws",
+      apiUrl: "a61.chat.agora.io",
     });
 
     conn.addEventHandler("demo", {
