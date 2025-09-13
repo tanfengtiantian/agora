@@ -1,4 +1,17 @@
 let conn;
+const AC = window.WebIM || window.AgoraChat || window.agoraChat;
+
+// Ensure cross-origin requests avoid sending credentials so that
+// the msync-api-61.chat.agora.io endpoint, which responds with
+// `Access-Control-Allow-Origin: *`, will pass CORS checks when this
+// page is opened from the local file system.
+if (window.XMLHttpRequest) {
+  const origOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (...args) {
+    origOpen.apply(this, args);
+    this.withCredentials = false;
+  };
+}
 
 function log(text) {
   const msgList = document.getElementById("messages");
@@ -22,9 +35,13 @@ window.addEventListener("load", () => {
       return;
     }
 
-    conn = new AgoraChat.connection({
+    conn = new AC.connection({
       appKey,
       autoReconnect: true,
+      https: true,
+      isHttpDNS: false,
+      url: "msync-api-61.chat.agora.io/ws",
+      apiUrl: "a61.chat.agora.io",
     });
 
     conn.addEventHandler("demo", {
@@ -60,6 +77,9 @@ window.addEventListener("load", () => {
         if (r.subscription === "both") {
           const li = document.createElement("li");
           li.textContent = r.name;
+          li.addEventListener("click", () => {
+            document.getElementById("toUser").value = r.name;
+          });
           list.appendChild(li);
         }
       });
@@ -81,7 +101,7 @@ window.addEventListener("load", () => {
       return;
     }
 
-    const msg = AgoraChat.message.create({
+    const msg = AC.message.create({
       type: "txt",
       chatType: "singleChat",
       to: toUser,

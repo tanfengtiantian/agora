@@ -5,28 +5,41 @@
   <title>Agora Chat Console</title>
   <script src="./node_modules/agora-chat/Agora-chat.js"></script>
   <script defer src="app.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; }
+    #loginForm { padding: 10px; border-bottom: 1px solid #ccc; }
+    #chatContainer { display: flex; height: 80vh; }
+    #friendsPanel { width: 200px; border-right: 1px solid #ccc; overflow-y: auto; }
+    #friends { list-style: none; padding: 0; margin: 0; }
+    #friends li { padding: 5px; cursor: pointer; }
+    #friends li:hover { background: #eee; }
+    #chatPanel { flex: 1; display: flex; flex-direction: column; }
+    #messages { flex: 1; list-style: none; padding: 10px; margin: 0; overflow-y: auto; }
+    #messages li { margin: 5px 0; }
+    #inputPanel { display: flex; padding: 10px; border-top: 1px solid #ccc; }
+    #inputPanel input { flex: 1; margin-right: 5px; }
+  </style>
 </head>
 <body>
-  <h1>Agora Chat Demo</h1>
-  <div>
-    <label>App Key: <input id="appKey" value="611394174#1598470"></label><br>
-    <label>User ID: <input id="userId" value="make02"></label><br>
-    <label>Token: <input id="token" type="text"></label>
+  <div id="loginForm">
+    <label>App Key: <input id="appKey" value="611394174#1598470"></label>
+    <label>User ID: <input id="userId" value="make02"></label>
+    <label>Token: <input id="token" type="text" value="007eJxTYAiSe8Mrwe/MGH5m5qnlUp85H/Aa/omPNc4T3DK/oj9P94kCQ1KSeZJhSkqiZUqSgYmBeapFqomFgUlyioGxhaGlkbkp060jGQ2BjAzFH0KYGBlYGRiBEMRXYTBKTU0yM7M00LVISjbTNTRMM9C1NE5K0zVIMjVJtEwzSTUxSwUAjvAlsA=="></label>
     <button id="loginBtn">Login</button>
-  </div>
-  <div>
     <button id="getFriendsBtn">Get Friend List</button>
-    <ul id="friends"></ul>
   </div>
-  <div>
-    <h2>Send Message</h2>
-    <label>To: <input id="toUser"></label><br>
-    <label>Message: <input id="msgText"></label><br>
-    <button id="sendBtn">Send</button>
-  </div>
-  <div>
-    <h2>Messages</h2>
-    <ul id="messages"></ul>
+  <div id="chatContainer">
+    <div id="friendsPanel">
+      <ul id="friends"></ul>
+    </div>
+    <div id="chatPanel">
+      <ul id="messages"></ul>
+      <div id="inputPanel">
+        <input id="toUser" placeholder="To">
+        <input id="msgText" placeholder="Type a message">
+        <button id="sendBtn">Send</button>
+      </div>
+    </div>
   </div>
 </body>
 </html>
