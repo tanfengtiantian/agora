@@ -12,4 +12,3 @@ This repository contains a minimal HTML/JavaScript demo for Agora Chat.
 6. Send messages and view incoming messages in the list.
 
 > Note: The demo disables `XMLHttpRequest` credentials to avoid CORS issues when opened from the local file system.
-> The connection explicitly enables HTTPS and bypasses the SDK's DNS by providing the `msync-api-61` URLs directly.
