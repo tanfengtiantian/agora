@@ -26,6 +26,8 @@ window.addEventListener("load", () => {
     conn = new AC.connection({
       appKey,
       autoReconnect: true,
+      url: "https://msync-api-61.chat.agora.io/ws",
+      apiUrl: "https://a61.chat.agora.io",
     });
 
     conn.addEventHandler("demo", {
@@ -61,6 +63,9 @@ window.addEventListener("load", () => {
         if (r.subscription === "both") {
           const li = document.createElement("li");
           li.textContent = r.name;
+          li.addEventListener("click", () => {
+            document.getElementById("toUser").value = r.name;
+          });
           list.appendChild(li);
         }
       });
