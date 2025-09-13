@@ -75,6 +75,9 @@ window.addEventListener("load", () => {
         if (r.subscription === "both") {
           const li = document.createElement("li");
           li.textContent = r.name;
+          li.addEventListener("click", () => {
+            document.getElementById("toUser").value = r.name;
+          });
           list.appendChild(li);
         }
       });
