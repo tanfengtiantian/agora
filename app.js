@@ -1,4 +1,5 @@
 let conn;
+const AC = window.WebIM || window.AgoraChat || window.agoraChat;
 
 function log(text) {
   const msgList = document.getElementById("messages");
@@ -22,7 +23,7 @@ window.addEventListener("load", () => {
       return;
     }
 
-    conn = new AgoraChat.connection({
+    conn = new AC.connection({
       appKey,
       autoReconnect: true,
     });
@@ -81,7 +82,7 @@ window.addEventListener("load", () => {
       return;
     }
 
-    const msg = AgoraChat.message.create({
+    const msg = AC.message.create({
       type: "txt",
       chatType: "singleChat",
       to: toUser,
