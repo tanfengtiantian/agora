@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Agora Chat Console</title>
+  <script src="https://download.agora.io/sdk/release/AgoraChat-4.5.0.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <h1>Agora Chat Demo</h1>
+  <div>
+    <label>App Key: <input id="appKey" value="611394174#1598470"></label><br>
+    <label>User ID: <input id="userId" value="make02"></label><br>
+    <label>Token: <input id="token" type="text"></label>
+    <button id="loginBtn">Login</button>
+  </div>
+  <div>
+    <button id="getFriendsBtn">Get Friend List</button>
+    <ul id="friends"></ul>
+  </div>
+  <div>
+    <h2>Send Message</h2>
+    <label>To: <input id="toUser"></label><br>
+    <label>Message: <input id="msgText"></label><br>
+    <button id="sendBtn">Send</button>
+  </div>
+  <div>
+    <h2>Messages</h2>
+    <ul id="messages"></ul>
+  </div>
+</body>
+</html>
