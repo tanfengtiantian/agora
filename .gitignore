@@ -1,0 +1,9 @@
+# Maven build output
+java-client/target/
+
+# IDE metadata
+.idea/
+*.iml
+
+# Node modules (if future tooling is added)
+node_modules/

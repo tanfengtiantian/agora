@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Signal 协议端到端加密演示</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 2rem auto;
+      max-width: 900px;
+      line-height: 1.6;
+      color: #1f2933;
+      background-color: #f7fafc;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    section {
+      background: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, 0.12);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #cbd5e0;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #fdfdfd;
+    }
+
+    button {
+      margin-top: 0.75rem;
+      padding: 0.65rem 1.25rem;
+      background-color: #2563eb;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s ease-in-out;
+    }
+
+    button:disabled {
+      background-color: #94a3b8;
+      cursor: wait;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: #1d4ed8;
+    }
+
+    #log {
+      height: 240px;
+      overflow-y: auto;
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+      font-size: 0.9rem;
+      padding: 1rem;
+      border-radius: 6px;
+      white-space: pre-wrap;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/libsignal-protocol@2.4.0/dist/libsignal-protocol.min.js"></script>
+</head>
+<body>
+  <h1>Signal 协议端到端加密演示</h1>
+  <p>此页面和 Java 后端示例程序一起，模拟两个客户端之间通过 Signal 协议进行端到端加密通信。</p>
+
+  <section>
+    <h2>初始化状态</h2>
+    <p id="status">正在启动……</p>
+    <button id="initButton">重新初始化密钥</button>
+  </section>
+
+  <section>
+    <h2>Web → Java</h2>
+    <label for="webMessage">要发送给 Java 客户端的消息</label>
+    <textarea id="webMessage" rows="3" placeholder="输入文本后点击发送"></textarea>
+    <button id="sendToJava">加密并发送到 Java</button>
+  </section>
+
+  <section>
+    <h2>Java → Web</h2>
+    <label for="javaMessage">由 Java 客户端发送的消息内容</label>
+    <input id="javaMessage" type="text" placeholder="例如：Hello from Java" />
+    <button id="askJavaToSend">让 Java 客户端加密该消息</button>
+    <button id="fetchFromJava">获取等待 Web 解密的密文</button>
+    <div id="javaMessages"></div>
+  </section>
+
+  <section>
+    <h2>日志</h2>
+    <div id="log"></div>
+  </section>
+
+  <script>
+    function SignalProtocolStore() {
+      this.store = {};
+    }
+
+    SignalProtocolStore.prototype = {
+      getIdentityKeyPair() {
+        return this.get('identityKey');
+      },
+      getLocalRegistrationId() {
+        return this.get('registrationId');
+      },
+      put(key, value) {
+        this.store[key] = value;
+      },
+      get(key, defaultValue) {
+        if (Object.prototype.hasOwnProperty.call(this.store, key)) {
+          return this.store[key];
+        }
+        return defaultValue;
+      },
+      remove(key) {
+        delete this.store[key];
+      },
+      reset() {
+        this.store = {};
+      },
+      isTrustedIdentity() {
+        return true;
+      },
+      saveIdentity(identifier, identityKey) {
+        const existing = this.get('identityKey' + identifier);
+        this.put('identityKey' + identifier, identityKey);
+        if (existing) {
+          return arrayBufferToBase64(existing) === arrayBufferToBase64(identityKey);
+        }
+        return true;
+      },
+      loadIdentityKey(identifier) {
+        return this.get('identityKey' + identifier);
+      },
+      loadPreKey(keyId) {
+        return this.get('preKey' + keyId);
+      },
+      storePreKey(keyId, keyPair) {
+        this.put('preKey' + keyId, keyPair);
+      },
+      removePreKey(keyId) {
+        this.remove('preKey' + keyId);
+      },
+      loadSignedPreKey(keyId) {
+        return this.get('signedPreKey' + keyId);
+      },
+      storeSignedPreKey(keyId, keyPair) {
+        this.put('signedPreKey' + keyId, keyPair);
+      },
+      removeSignedPreKey(keyId) {
+        this.remove('signedPreKey' + keyId);
+      },
+      loadSession(identifier) {
+        return this.get('session' + identifier);
+      },
+      storeSession(identifier, record) {
+        this.put('session' + identifier, record);
+      },
+      removeSession(identifier) {
+        this.remove('session' + identifier);
+      },
+      removeAllSessions(identifier) {
+        Object.keys(this.store)
+          .filter((key) => key.startsWith('session' + identifier))
+          .forEach((key) => delete this.store[key]);
+      },
+      getSubDeviceSessions() {
+        return [];
+      }
+    };
+
+    const Signal = window.libsignal;
+    const store = new SignalProtocolStore();
+    const JAVA_ADDRESS = new Signal.SignalProtocolAddress('java', 1);
+    const STATUS = document.getElementById('status');
+    const LOG = document.getElementById('log');
+    const initButton = document.getElementById('initButton');
+    const sendButton = document.getElementById('sendToJava');
+    const askJavaButton = document.getElementById('askJavaToSend');
+    const fetchButton = document.getElementById('fetchFromJava');
+
+    let identityKeyPair;
+    let registrationId;
+    let preKeyId = 1;
+    let signedPreKeyId = 1;
+
+    initButton.addEventListener('click', () => initialise(true));
+    sendButton.addEventListener('click', sendToJava);
+    askJavaButton.addEventListener('click', sendJavaMessageRequest);
+    fetchButton.addEventListener('click', fetchMessagesFromJava);
+
+    disableControls();
+    initialise(false);
+
+    async function initialise(reset) {
+      try {
+        disableControls();
+        if (reset) {
+          store.reset();
+          preKeyId = 1;
+          signedPreKeyId = 1;
+          log('重置本地存储。');
+        }
+        STATUS.textContent = '生成身份密钥对…';
+        identityKeyPair = await Signal.KeyHelper.generateIdentityKeyPair();
+        registrationId = await Signal.KeyHelper.generateRegistrationId();
+        store.put('identityKey', identityKeyPair);
+        store.put('registrationId', registrationId);
+
+        STATUS.textContent = '生成 PreKey / SignedPreKey…';
+        const preKey = await Signal.KeyHelper.generatePreKey(preKeyId);
+        const signedPreKey = await Signal.KeyHelper.generateSignedPreKey(identityKeyPair, signedPreKeyId);
+        store.storePreKey(preKeyId, preKey.keyPair);
+        store.storeSignedPreKey(signedPreKeyId, signedPreKey.keyPair);
+
+        STATUS.textContent = '向 Java 注册 Web 端 PreKey Bundle…';
+        const bundle = {
+          registrationId,
+          deviceId: 1,
+          preKeyId,
+          preKeyPublic: arrayBufferToBase64(preKey.keyPair.pubKey),
+          signedPreKeyId,
+          signedPreKeyPublic: arrayBufferToBase64(signedPreKey.keyPair.pubKey),
+          signedPreKeySignature: arrayBufferToBase64(signedPreKey.signature),
+          identityKeyPublic: arrayBufferToBase64(identityKeyPair.pubKey)
+        };
+        await fetch('/web/prekey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bundle)
+        });
+        log('已向 Java 端提交 Web 的 PreKey Bundle。');
+
+        STATUS.textContent = '获取 Java PreKey Bundle 并建立会话…';
+        const javaBundleResponse = await fetch('/java/prekey');
+        const javaBundle = await javaBundleResponse.json();
+        const processedBundle = {
+          registrationId: javaBundle.registrationId,
+          deviceId: javaBundle.deviceId,
+          preKeyId: javaBundle.preKeyId,
+          preKeyPublic: base64ToArrayBuffer(javaBundle.preKeyPublic),
+          signedPreKeyId: javaBundle.signedPreKeyId,
+          signedPreKeyPublic: base64ToArrayBuffer(javaBundle.signedPreKeyPublic),
+          signedPreKeySignature: base64ToArrayBuffer(javaBundle.signedPreKeySignature),
+          identityKey: base64ToArrayBuffer(javaBundle.identityKeyPublic)
+        };
+        const sessionBuilder = new Signal.SessionBuilder(store, JAVA_ADDRESS);
+        await sessionBuilder.processPreKey(processedBundle);
+        log('已与 Java 客户端建立会话。');
+
+        STATUS.textContent = '完成初始化，可以开始通信。';
+        enableControls();
+      } catch (error) {
+        console.error(error);
+        log('初始化失败: ' + error.message);
+        STATUS.textContent = '初始化失败，请检查 Java 服务是否已启动。';
+        enableControls(false);
+      }
+    }
+
+    async function sendToJava() {
+      try {
+        const message = document.getElementById('webMessage').value.trim();
+        if (!message) {
+          alert('请输入要发送的内容');
+          return;
+        }
+        const cipher = new Signal.SessionCipher(store, JAVA_ADDRESS);
+        const ciphertext = await cipher.encrypt(textToArrayBuffer(message));
+        const type = ciphertext.type === 3 ? 'PREKEY' : 'SIGNAL';
+        const payload = {
+          type,
+          body: arrayBufferToBase64(ciphertext.body)
+        };
+        const response = await fetch('/messages/from-web', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        log('→ Web 向 Java 发送密文，Java 解密得到: ' + data.plaintext);
+      } catch (error) {
+        console.error(error);
+        log('发送失败: ' + error.message);
+      }
+    }
+
+    async function sendJavaMessageRequest() {
+      try {
+        const message = document.getElementById('javaMessage').value.trim();
+        if (!message) {
+          alert('请输入 Java 端要发送的消息内容');
+          return;
+        }
+        const response = await fetch('/messages/java/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plaintext: message })
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || 'Java 端发送失败');
+        }
+        const envelope = await response.json();
+        log('Java 已加密消息并存入待领取队列，类型: ' + envelope.type);
+      } catch (error) {
+        console.error(error);
+        log('请求 Java 发送消息失败: ' + error.message);
+      }
+    }
+
+    async function fetchMessagesFromJava() {
+      try {
+        const response = await fetch('/messages/to-web');
+        const envelopes = await response.json();
+        if (!envelopes.length) {
+          log('当前没有待解密的 Java → Web 消息。');
+          return;
+        }
+        const messages = [];
+        for (const envelope of envelopes) {
+          const cipher = new Signal.SessionCipher(store, JAVA_ADDRESS);
+          const body = base64ToArrayBuffer(envelope.body);
+          let plaintextBuffer;
+          if (envelope.type === 'PREKEY') {
+            plaintextBuffer = await cipher.decryptPreKeyWhisperMessage(new Uint8Array(body), 'binary');
+          } else {
+            plaintextBuffer = await cipher.decryptWhisperMessage(new Uint8Array(body), 'binary');
+          }
+          const plaintext = arrayBufferToText(plaintextBuffer);
+          messages.push(plaintext);
+          log('← Java → Web 解密得到: ' + plaintext);
+        }
+        document.getElementById('javaMessages').textContent = messages.join('\n');
+      } catch (error) {
+        console.error(error);
+        log('获取或解密 Java 消息失败: ' + error.message);
+      }
+    }
+
+    function disableControls() {
+      sendButton.disabled = true;
+      askJavaButton.disabled = true;
+      fetchButton.disabled = true;
+      initButton.disabled = true;
+    }
+
+    function enableControls(includeInit = true) {
+      sendButton.disabled = false;
+      askJavaButton.disabled = false;
+      fetchButton.disabled = false;
+      if (includeInit) {
+        initButton.disabled = false;
+      }
+    }
+
+    function log(message) {
+      const timestamp = new Date().toLocaleTimeString();
+      LOG.textContent += `[${timestamp}] ${message}\n`;
+      LOG.scrollTop = LOG.scrollHeight;
+    }
+
+    function textToArrayBuffer(text) {
+      return new TextEncoder().encode(text).buffer;
+    }
+
+    function arrayBufferToText(buffer) {
+      return new TextDecoder().decode(buffer);
+    }
+
+    function arrayBufferToBase64(buffer) {
+      const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
+    function base64ToArrayBuffer(base64) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+  </script>
+</body>
+</html>
